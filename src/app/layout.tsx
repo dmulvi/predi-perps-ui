@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PrediPerps",
   description: "Hackathon trading UI clone with Next.js and Privy",
+  icons: {
+    icon: "/prediperps-favicon.svg",
+  },
 };
 
 export default function RootLayout({

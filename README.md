@@ -1,4 +1,4 @@
-# PrediPerps UI
+![PrediPerps](public/prediperps-logo.svg)
 
 A **Next.js** trading interface for perpetual-style markets: live candle charts, order sizing (margin, leverage, long/short), and a **“what-if” hybrid market** that combines an underlying perp reference with **Polymarket-style** prediction data when you select markets like `BTC-USD-WHAT-IF`.
 
@@ -46,14 +46,14 @@ Copy the example file and edit values:
 cp .env.local.example .env.local
 ```
 
-| Variable | Purpose |
-| -------- | ------- |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for wallet / email login. Leave unset only if you rely on injected wallet without Privy UI. **Do not** expose `PRIVY_APP_SECRET` as `NEXT_PUBLIC_*` — keep secrets server-only. |
-| `NEXT_PUBLIC_RPC_URL` | Optional HTTP RPC for Arbitrum Sepolia (e.g. Alchemy/Infura). Falls back to the public RPC if omitted. |
-| `NEXT_PUBLIC_USDC_ADDRESS` | USDC token on **Arbitrum Sepolia** (same chain as the vault). |
-| `NEXT_PUBLIC_PREDI_VAULT_ADDRESS` | Deployed `PrediPerpsVault` contract (see below). |
-| `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` | Optional. If empty, the UI loads `src/lib/api/fixtures/whatIfMarket.mock.json`. |
-| `NEXT_PUBLIC_WHAT_IF_POLL_INTERVAL_MS` | Polling interval for the what-if API when a what-if market is selected (default sensible in example). |
+| Variable                               | Purpose                                                                                                                                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_PRIVY_APP_ID`             | Privy app ID for wallet / email login. Leave unset only if you rely on injected wallet without Privy UI. **Do not** expose `PRIVY_APP_SECRET` as `NEXT_PUBLIC_*` — keep secrets server-only. |
+| `NEXT_PUBLIC_RPC_URL`                  | Optional HTTP RPC for Arbitrum Sepolia (e.g. Alchemy/Infura). Falls back to the public RPC if omitted.                                                                                       |
+| `NEXT_PUBLIC_USDC_ADDRESS`             | USDC token on **Arbitrum Sepolia** (same chain as the vault).                                                                                                                                |
+| `NEXT_PUBLIC_PREDI_VAULT_ADDRESS`      | Deployed `PrediPerpsVault` contract (see below).                                                                                                                                             |
+| `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL`   | Optional. If empty, the UI loads `src/lib/api/fixtures/whatIfMarket.mock.json`.                                                                                                              |
+| `NEXT_PUBLIC_WHAT_IF_POLL_INTERVAL_MS` | Polling interval for the what-if API when a what-if market is selected (default sensible in example).                                                                                        |
 
 `NEXT_PUBLIC_*` variables are inlined into the client bundle; restart the dev server after changing `.env.local`.
 
@@ -90,7 +90,7 @@ Positions are stored in the browser only, keyed by wallet:
 **Remove one wallet’s rows** — DevTools → **Console**:
 
 ```js
-localStorage.removeItem("predi-perps-positions:0x_your_address_lowercase")
+localStorage.removeItem("predi-perps-positions:0x_your_address_lowercase");
 ```
 
 **Remove all Predi position keys** (other `localStorage` keys on the same origin are kept):
@@ -98,13 +98,13 @@ localStorage.removeItem("predi-perps-positions:0x_your_address_lowercase")
 ```js
 Object.keys(localStorage)
   .filter((k) => k.startsWith("predi-perps-positions:"))
-  .forEach((k) => localStorage.removeItem(k))
+  .forEach((k) => localStorage.removeItem(k));
 ```
 
 **Clear everything** for this origin:
 
 ```js
-localStorage.clear()
+localStorage.clear();
 ```
 
 Or use DevTools → **Application** → **Local Storage** → your origin → delete entries or **Clear**.
