@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 392 56" width="392" height="56" role="img">
+  <title>PrediPerps</title>
+  <desc>PrediPerps logo — PP monogram mark with off-black and lime, paired with wordmark</desc>
+
+  <!-- PP monogram mark -->
+  <!-- dark square background -->
+  <rect x="0" y="0" width="48" height="56" rx="4" fill="#2C4A7C" />
+  <!-- lime square overlapping right -->
+  <rect x="18" y="0" width="48" height="56" rx="4" fill="#B4F000" />
+
+  <!-- left P shape cut from dark square -->
+  <rect x="6" y="8" width="8" height="40" fill="#2C4A7C" />
+  <path d="M14,8 L32,8 L38,16 L32,26 L14,26 Z" fill="#2C4A7C" />
+
+  <!-- right P shape cut from lime square -->
+  <rect x="24" y="8" width="8" height="40" fill="#B4F000" />
+  <path d="M32,8 L50,8 L56,16 L50,26 L32,26 Z" fill="#2C4A7C" />
+
+  <!-- Wordmark -->
+  <text
+    x="80"
+    y="42"
+    font-size="42"
+    font-weight="900"
+    fill="#6ea8ff"
+    font-family="Georgia, 'Times New Roman', serif"
+    letter-spacing="-1"
+  >
+    Predi
+    <tspan fill="#B4F000">Perps</tspan>
+  </text>
+</svg>

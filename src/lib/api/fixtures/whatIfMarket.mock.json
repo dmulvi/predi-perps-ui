@@ -1,0 +1,43 @@
+{
+  "symbol": "BTC-USD",
+  "underlying_perp": {
+    "symbol": "BTC-USD",
+    "price": "74780.530",
+    "timestamp_us": 1776289818024441
+  },
+  "hybrid_price": "25069.63528490590867219370970",
+  "hybrid_candles": [
+    {
+      "time": 1710000000,
+      "open": 24820.5,
+      "high": 25110.2,
+      "low": 24790.0,
+      "close": 25040.0
+    },
+    {
+      "time": 1710000060,
+      "open": 25040.0,
+      "high": 25180.0,
+      "low": 24995.0,
+      "close": 25120.0
+    },
+    {
+      "time": 1710000120,
+      "open": 25120.0,
+      "high": 25200.0,
+      "low": 25010.0,
+      "close": 25069.63528490590867219370970
+    }
+  ],
+  "timestamp_us": 1776289818166421,
+  "polymarket": {
+    "description": "This market will resolve to \"Yes\" if IMF Portwatch publishes a 7-day moving average of transit calls (\"Arrivals of Ships\") for the Strait of Hormuz equal to or above 60 for any date between market creation and April 30, 2026. Otherwise, this market will resolve to \"No\".\n\nDaily transit calls include container, dry bulk, roll-on/roll-off, general cargo, and tanker ships. Ships not reported by IMF Portwatch will not be considered.\n\nThis market will resolve as soon as IMF Portwatch publishes a 7-day moving average of transit calls equal to or above the specified level, or once data has been published for the final date in the specified period and no such value has been published. If no data has been published for the final date of the specified period within 14 calendar days (ET) after the end of that period, this market will resolve based on data published up to that point.\n\nRevisions to previously published data points made within this market's timeframe will be considered. However, they will not disqualify a previously published data point from qualifying. Revisions to previously published data points after data is published for April 30, 2026, however, will not be considered.\n\nThe resolution source for this market will be IMF Portwatch, specifically the transit calls data published for the Strait of Hormuz at https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a1730, both in the chart and through downloadable files.",
+    "resolved": false,
+    "question": "Strait of Hormuz traffic returns to normal by end of April?",
+    "probability": "0.255",
+    "start_date": "2026-03-09",
+    "end_date": "2026-04-30",
+    "resolved_at": null,
+    "resolution_price": null
+  }
+}

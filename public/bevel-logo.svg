@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="640" height="160" role="img">
+  <title>BEVEL</title>
+  <desc>BEVEL logo — incised italic letterforms in two-tone orange and yellow</desc>
+
+  <!-- B -->
+  <path d="M0,4 L14,4 L14,56 L0,56 Z" fill="#2C4A7C" />
+  <path d="M14,4 L44,4 L52,16 L44,28 L14,28 Z" fill="#2C4A7C" />
+  <path d="M14,30 L48,30 L57,42 L48,56 L14,56 Z" fill="#2C4A7C" />
+
+  <!-- E -->
+  <path
+    d="M68,4 L110,4 L106,16 L80,16 L80,26 L104,26 L100,38 L80,38 L80,46 L108,46 L104,58 L68,58 Z"
+    fill="#2C4A7C"
+  />
+
+  <!-- V — yellow accent -->
+  <path d="M120,4 L136,4 L154,42 L172,4 L188,4 L162,58 L146,58 Z" fill="#3DD68C" />
+
+  <!-- E -->
+  <path
+    d="M198,4 L240,4 L236,16 L210,16 L210,26 L234,26 L230,38 L210,38 L210,46 L238,46 L234,58 L198,58 Z"
+    fill="#2C4A7C"
+  />
+
+  <!-- L — with yellow foot bar -->
+  <path d="M250,4 L264,4 L264,46 L298,46 L294,58 L250,58 Z" fill="#2C4A7C" />
+  <path d="M264,46 L298,46 L294,58 L258,58 Z" fill="#3DD68C" />
+
+  <!-- Accent underline bar -->
+  <rect x="0" y="64" width="298" height="5" rx="2.5" fill="#3DD68C" />
+</svg>
