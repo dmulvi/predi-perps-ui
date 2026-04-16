@@ -42,7 +42,7 @@ export function WhatIfPredictionPanel({
     >
       <div className="mb-3 shrink-0 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="rounded bg-[#1e2430] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8b9cb3]">
+          <span className="rounded bg-[#1e2430] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8eb4ff]">
             Polymarket
           </span>
           <span className="text-[11px] text-[#6b7c93]">Prediction layer</span>
@@ -61,7 +61,9 @@ export function WhatIfPredictionPanel({
       {error ? <p className="shrink-0 text-sm text-[#f87171]">{error}</p> : null}
 
       {snapshot?.hybridNote ? (
-        <p className="mb-3 shrink-0 text-xs leading-relaxed text-[#8b9cb3]">{snapshot.hybridNote}</p>
+        <p className="mb-3 shrink-0 text-xs leading-relaxed text-[#8b9cb3]">
+          {snapshot.hybridNote}
+        </p>
       ) : null}
 
       <h3 className="mb-3 shrink-0 text-base font-semibold leading-snug text-white">

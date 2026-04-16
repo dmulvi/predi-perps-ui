@@ -14,7 +14,7 @@ export function LeftDrawer({ isOpen, onToggle }: Props) {
     >
       <div className="flex h-full min-h-0 flex-col">
         <div
-          className={`flex h-14 items-center border-b border-white/10 ${
+          className={`flex h-14 items-center  ${
             isOpen ? "justify-between px-4" : "justify-center"
           }`}
         >

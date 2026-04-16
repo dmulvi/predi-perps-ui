@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CandlestickData, UTCTimestamp } from "lightweight-charts";
-import { candlesFromApi } from "@/lib/api/whatIfMarket";
+import { candleRowsSignature, candlesFromApi } from "@/lib/api/whatIfMarket";
 import type { WhatIfMarketApiResponse } from "@/lib/api/whatIfMarket";
 import { isWhatIfSymbol } from "@/lib/constants/markets";
+import { isWhatIfFixtureMode } from "@/lib/whatIf/fixtureMode";
 import { nextHybridCandle, seedHybridCandles } from "@/lib/mock/hybridSeries";
 
 const TICK_MS = 2200;
@@ -17,8 +18,10 @@ type Params = {
 };
 
 /**
- * Main trading-view series for BTC-USD-WHAT-IF: hybrid (perp × prediction) OHLC.
- * See the hybrid chart section on `WhatIfMarketApiResponse` in `src/lib/api/whatIfMarket.ts`.
+ * Main trading-view series for BTC-USD-WHAT-IF: hybrid OHLC from API `history` → `candles`, mark from `price`.
+ * Remote API: with server `candles`, only syncs when history changes (signature) and patches last bar to `price`.
+ * Local fixture: same load, then still appends `nextHybridCandle` on a timer so the chart keeps moving.
+ * Without API candles, falls back to seeded mock + tick stream.
  */
 export function useWhatIfHybridChart({
   selectedSymbol,
@@ -27,15 +30,28 @@ export function useWhatIfHybridChart({
 }: Params) {
   const [candles, setCandles] = useState<CandlestickData<UTCTimestamp>[]>([]);
   const skeletonRef = useRef(false);
-  const mergedFromApiRef = useRef(false);
+  /** Avoid re-seeding synthetic history on every poll when the API has no `candles` yet. */
+  const seededWithoutServerRef = useRef(false);
+  /** Skip reloading from `serverCandles` when the snapshot fingerprint is unchanged (polls return new object refs). */
+  const lastSyncedHistoryKeyRef = useRef<string>("");
   const active = isWhatIfSymbol(selectedSymbol);
 
   const hybridPrice = apiData?.price;
+  const serverCandles = apiData?.candles;
+  const serverCandlesKey = useMemo(
+    () => candleRowsSignature(serverCandles),
+    [serverCandles]
+  );
+  const hasServerHistory = Boolean(serverCandles?.length);
+  const fixtureMode = isWhatIfFixtureMode();
+  /** Append synthetic bars on a timer when we are not on a remote API with frozen history. */
+  const allowSyntheticTickStream = !hasServerHistory || fixtureMode;
 
   useEffect(() => {
     if (!active) {
       skeletonRef.current = false;
-      mergedFromApiRef.current = false;
+      seededWithoutServerRef.current = false;
+      lastSyncedHistoryKeyRef.current = "";
       queueMicrotask(() => setCandles([]));
       return;
     }
@@ -48,19 +64,24 @@ export function useWhatIfHybridChart({
       return;
     }
 
-    if (mergedFromApiRef.current) return;
-    mergedFromApiRef.current = true;
-
-    if (apiData.candles?.length) {
-      const fromApi = candlesFromApi(apiData.candles);
-      queueMicrotask(() => setCandles(fromApi));
+    if (!hasServerHistory) {
+      if (!seededWithoutServerRef.current) {
+        seededWithoutServerRef.current = true;
+        queueMicrotask(() =>
+          setCandles(seedHybridCandles(140, hybridPrice ?? fallbackAnchorPrice))
+        );
+      }
       return;
     }
 
-    queueMicrotask(() =>
-      setCandles(seedHybridCandles(140, hybridPrice ?? fallbackAnchorPrice))
-    );
-  }, [active, apiData, fallbackAnchorPrice, hybridPrice]);
+    if (serverCandlesKey === lastSyncedHistoryKeyRef.current) {
+      return;
+    }
+    lastSyncedHistoryKeyRef.current = serverCandlesKey;
+
+    seededWithoutServerRef.current = false;
+    queueMicrotask(() => setCandles(candlesFromApi(serverCandles!)));
+  }, [active, apiData, fallbackAnchorPrice, hasServerHistory, serverCandles, serverCandlesKey]);
 
   useEffect(() => {
     if (!active || hybridPrice == null) return;
@@ -81,7 +102,7 @@ export function useWhatIfHybridChart({
   }, [active, hybridPrice]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !allowSyntheticTickStream) return;
 
     const id = window.setInterval(() => {
       setCandles((prev) => {
@@ -93,7 +114,7 @@ export function useWhatIfHybridChart({
     }, TICK_MS);
 
     return () => window.clearInterval(id);
-  }, [active, hybridPrice]);
+  }, [active, allowSyntheticTickStream, hybridPrice]);
 
   return candles;
 }

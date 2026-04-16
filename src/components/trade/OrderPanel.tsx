@@ -60,6 +60,8 @@ export function OrderPanel({
   const [marginInput, setMarginInput] = useState("100");
   const [leverage, setLeverage] = useState(10);
   const [detailsOpen, setDetailsOpen] = useState(true);
+  /** Size field shows notional in USDC or position size in base asset; click badge to switch. */
+  const [sizeUnit, setSizeUnit] = useState<"usdc" | "base">("usdc");
 
   const margin = useMemo(() => {
     const n = parseFloat(marginInput.replace(/,/g, ""));
@@ -68,6 +70,30 @@ export function OrderPanel({
 
   const notionalValue = margin * leverage;
   const positionAsset = markPrice > 0 ? notionalValue / markPrice : 0;
+
+  const setMarginFromNotional = (notional: number) => {
+    const n = Math.max(0, notional);
+    const m = leverage > 0 ? n / leverage : 0;
+    if (!Number.isFinite(m)) {
+      setMarginInput("0");
+      return;
+    }
+    setMarginInput(m < 100 ? m.toFixed(2) : String(Math.round(m)));
+  };
+
+  const sizeDisplayValue = useMemo(() => {
+    if (sizeUnit === "usdc") {
+      if (notionalValue <= 0) return "0";
+      return Number.isInteger(notionalValue)
+        ? String(notionalValue)
+        : notionalValue.toFixed(2);
+    }
+    if (markPrice <= 0 || notionalValue <= 0) return "0";
+    const base = notionalValue / markPrice;
+    if (base >= 1) return base.toFixed(4);
+    if (base >= 0.0001) return base.toFixed(6);
+    return base.toFixed(8);
+  }, [sizeUnit, notionalValue, markPrice]);
 
   const estLiqPrice = useMemo(() => {
     if (markPrice <= 0 || leverage < 1) return 0;
@@ -85,15 +111,33 @@ export function OrderPanel({
     setMarginInput(cleaned);
   };
 
-  const onSizeChange = (raw: string) => {
+  const onSizeFieldChange = (raw: string) => {
     const cleaned = raw.replace(/[^\d.]/g, "");
-    const size = parseFloat(cleaned);
-    if (!Number.isFinite(size) || size < 0) {
+    const v = parseFloat(cleaned);
+    if (!Number.isFinite(v) || v < 0) {
       setMarginInput("0");
       return;
     }
-    const m = leverage > 0 ? size / leverage : 0;
-    setMarginInput(m.toFixed(m < 100 ? 2 : 0));
+    if (sizeUnit === "usdc") {
+      setMarginFromNotional(v);
+      return;
+    }
+    if (markPrice <= 0) return;
+    setMarginFromNotional(v * markPrice);
+  };
+
+  const USDC_NOTIONAL_STEP = 10;
+  const onSizeStep = (direction: 1 | -1) => {
+    if (sizeUnit === "usdc") {
+      setMarginFromNotional(notionalValue + direction * USDC_NOTIONAL_STEP);
+      return;
+    }
+    if (markPrice <= 0) return;
+    const baseStep =
+      positionAsset >= 1 ? 0.0001 : positionAsset >= 0.01 ? 0.00001 : 0.000001;
+    const deltaBase = direction * baseStep;
+    const nextBase = Math.max(0, positionAsset + deltaBase);
+    setMarginFromNotional(nextBase * markPrice);
   };
 
   const leverageMarks = [1, 5, 10, 15, 20];
@@ -346,22 +390,38 @@ export function OrderPanel({
             <input
               type="text"
               inputMode="decimal"
-              value={
-                notionalValue > 0
-                  ? Number.isInteger(notionalValue)
-                    ? String(notionalValue)
-                    : notionalValue.toFixed(2)
-                  : "0"
-              }
-              onChange={(e) => onSizeChange(e.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-white outline-none"
+              value={sizeDisplayValue}
+              onChange={(e) => onSizeFieldChange(e.target.value)}
+              className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm tabular-nums text-white outline-none"
             />
-            <button
-              type="button"
-              className="flex items-center gap-1 border-l border-white/10 px-3 text-xs font-medium text-[#6ea8ff]"
-            >
-              USDC <span className="text-[10px]">▲▼</span>
-            </button>
+            <div className="flex shrink-0 items-stretch border-l border-white/10">
+              <button
+                type="button"
+                onClick={() => setSizeUnit((u) => (u === "usdc" ? "base" : "usdc"))}
+                className="px-3 py-2 text-xs font-semibold tracking-wide text-[#8eb8ff] transition hover:bg-white/4 hover:text-[#b8d4ff]"
+                title="Switch size unit"
+              >
+                {sizeUnit === "usdc" ? "USDC" : baseAsset}
+              </button>
+              <div className="flex w-7 flex-col border-l border-white/10">
+                <button
+                  type="button"
+                  aria-label="Increase size"
+                  onClick={() => onSizeStep(1)}
+                  className="flex flex-1 items-center justify-center border-b border-white/10 py-0.5 text-white/40 transition hover:bg-white/4 hover:text-white/70"
+                >
+                  <SizeChevron direction="up" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Decrease size"
+                  onClick={() => onSizeStep(-1)}
+                  className="flex flex-1 items-center justify-center py-0.5 text-white/40 transition hover:bg-white/4 hover:text-white/70"
+                >
+                  <SizeChevron direction="down" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -491,6 +551,38 @@ export function OrderPanel({
         }
       `}</style>
     </aside>
+  );
+}
+
+function SizeChevron({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg
+      width="10"
+      height="6"
+      viewBox="0 0 10 6"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="shrink-0"
+      aria-hidden
+    >
+      {direction === "up" ? (
+        <path
+          d="M1 5L5 1L9 5"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : (
+        <path
+          d="M1 1L5 5L9 1"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
   );
 }
 

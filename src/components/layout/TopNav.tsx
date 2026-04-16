@@ -86,13 +86,6 @@ export function TopNav() {
                     </p>
 
                     <div className="mt-4 space-y-3">
-                      <div className="rounded-2xl border border-white/10 bg-[#112e55] p-4">
-                        <div className="text-sm font-medium text-white">Privy (Embedded)</div>
-                        <div className="mt-1 text-sm text-white/60">
-                          {truncAddress(user?.id || "0x7315af76cbee")}
-                        </div>
-                      </div>
-
                       <div className="rounded-2xl border border-[#5da9ff] bg-[#0f294f] p-4 shadow-[inset_0_0_0_1px_rgba(93,169,255,0.35)]">
                         <div className="flex items-start justify-between">
                           <div>

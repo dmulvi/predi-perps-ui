@@ -2,18 +2,19 @@ import type { CandlestickData, UTCTimestamp } from "lightweight-charts";
 import whatIfMarketMock from "@/lib/api/fixtures/whatIfMarket.mock.json";
 
 /**
- * **Main chart (hybrid perp × prediction)** — what the backend should send for history:
+ * **Contract (mock JSON ≡ REST body)** — same shape for `src/lib/api/fixtures/whatIfMarket.mock.json`
+ * and `GET` responses when `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` is set:
  *
- * - **`hybrid_price`** (or `price` after normalization): authoritative **last/mark** for the hybrid
- *   instrument in USDC. The UI snaps the latest bar’s close to this on each poll.
- * - **`candles`** or **`hybrid_candles`**: optional OHLC series for the **hybrid** contract (same
- *   instrument as `hybrid_price`). Each bar:
- *   - `time`: Unix **seconds** (UTC), ascending, non-overlapping (e.g. 1m bars → +60 per step).
- *   - `open`, `high`, `low`, `close`: USDC; `high`/`low` must bracket `open`/`close`.
- * - If hybrid OHLC is omitted, the client synthesizes history anchored near `hybrid_price` for demos.
+ * - **Hybrid (main chart):** top-level **`price`** = current mark; top-level **`history`** =
+ *   `{ timestamp, price }[]` (Unix **seconds**) = historical marks. Full series loads on first fetch;
+ *   later polls typically extend **`history`** and/or refresh **`price`**; the client reapplies the
+ *   series when the snapshot changes and patches the last bar to **`price`** between longer histories.
+ * - **Underlying perp (mini chart):** **`base.price`** = current perp mark; **`base.history`** =
+ *   same point shape as hybrid. Legacy **`underlying_perp`** OHLC is still supported.
+ * - Optional full OHLC: **`candles`** / **`hybrid_candles`** (hybrid) or **`underlying_perp.candles`**
+ *   (perp) take precedence over **`history`** / **`base.history`** when present.
  *
- * Underlying perp mini-chart: optional `underlying_perp.candles` with the same OHLC shape (perp USDC),
- * or the UI can fall back to the global mock tick stream scaled to `underlying_perp.price`.
+ * If hybrid/perp OHLC and point histories are all omitted, the UI synthesizes demo series.
  */
 export type WhatIfMarketApiResponse = {
   /** Mark / last traded hybrid price (USDC), from API `hybrid_price`. */
@@ -67,6 +68,8 @@ export type WhatIfMarketApiResponse = {
     liquidityUsd?: number;
     endDate?: string;
     url?: string;
+    resolutionPrice?: string | null;
+    resolvedAt?: string | null;
   };
   /** Optional: how hybrid entry relates to spot + prediction (for display copy). */
   hybridNote?: string;
@@ -100,6 +103,15 @@ export type WhatIfApiRaw = {
     resolved_at?: string | null;
     resolution_price?: string | null;
   };
+  /** New API: underlying perp snapshot + { timestamp, price }[] (replaces flat `underlying_perp` for some backends). */
+  base?: {
+    timestamp?: number;
+    symbol?: string;
+    price?: string | number;
+    history?: Array<{ timestamp: number; price: string | number }>;
+  };
+  /** New API: hybrid instrument { timestamp, price }[] when full OHLC is omitted. */
+  history?: Array<{ timestamp: number; price: string | number }>;
 };
 
 function parseDecimal(value: string | number | undefined | null): number | undefined {
@@ -107,6 +119,35 @@ function parseDecimal(value: string | number | undefined | null): number | undef
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Builds OHLC rows from `{ timestamp, price }[]` (open = previous close, high/low bracket the move).
+ * `time` is Unix seconds, matching `candlesFromApi` / lightweight-charts.
+ */
+export function priceHistoryToOhlc(
+  points: Array<{ timestamp: number; price: string | number }>
+): NonNullable<WhatIfMarketApiResponse["candles"]> {
+  if (!points.length) return [];
+  const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+  const out: NonNullable<WhatIfMarketApiResponse["candles"]> = [];
+  let prevClose: number | undefined;
+  for (let i = 0; i < sorted.length; i++) {
+    const close = parseDecimal(sorted[i].price);
+    if (close === undefined) continue;
+    const open = prevClose === undefined ? close : prevClose;
+    prevClose = close;
+    const high = Math.max(open, close);
+    const low = Math.min(open, close);
+    out.push({
+      time: sorted[i].timestamp,
+      open,
+      high,
+      low,
+      close,
+    });
+  }
+  return out;
 }
 
 /**
@@ -119,7 +160,9 @@ export function normalizeWhatIfResponse(
   if (
     !("polymarket" in rawObj) &&
     !("underlying_perp" in rawObj) &&
-    !("hybrid_price" in rawObj)
+    !("hybrid_price" in rawObj) &&
+    !("base" in rawObj) &&
+    !("history" in rawObj)
   ) {
     return raw as WhatIfMarketApiResponse;
   }
@@ -133,7 +176,10 @@ export function normalizeWhatIfResponse(
   const outcomePrices =
     pYes != null && pYes >= 0 && pYes <= 1 ? [pYes, 1 - pYes] : undefined;
 
-  const underlying = r.underlying_perp ?? r.underlyingPerp;
+  const legacyUnderlying = r.underlying_perp ?? r.underlyingPerp;
+  const baseBlock = r.base;
+  const topHistory = r.history;
+
   const hybridFromFields =
     r.hybrid_price !== undefined
       ? parseDecimal(r.hybrid_price)
@@ -141,25 +187,49 @@ export function normalizeWhatIfResponse(
         ? parseDecimal(r.price)
         : undefined;
 
-  const perpPrice = underlying ? parseDecimal(underlying.price) : undefined;
+  const perpPriceLegacy = legacyUnderlying
+    ? parseDecimal(legacyUnderlying.price)
+    : undefined;
+  const perpPriceFromBase = baseBlock ? parseDecimal(baseBlock.price) : undefined;
+  const perpPrice = perpPriceLegacy ?? perpPriceFromBase;
 
   const prevPerp = r.underlyingPerp;
-  const underlyingTyped = underlying as WhatIfApiRaw["underlying_perp"] | undefined;
-  const hybridCandles =
+  const underlyingTyped = legacyUnderlying as WhatIfApiRaw["underlying_perp"] | undefined;
+  const perpCandlesLegacy = underlyingTyped?.candles ?? prevPerp?.candles;
+  const perpCandlesFromBase =
+    baseBlock?.history?.length && !perpCandlesLegacy?.length
+      ? priceHistoryToOhlc(baseBlock.history)
+      : undefined;
+  const perpCandles = perpCandlesLegacy?.length ? perpCandlesLegacy : perpCandlesFromBase;
+
+  const hybridCandlesDirect =
     r.hybrid_candles?.length ? r.hybrid_candles : r.candles;
+  const hybridCandlesFromHistory =
+    !hybridCandlesDirect?.length && topHistory?.length
+      ? priceHistoryToOhlc(topHistory)
+      : undefined;
+  const hybridCandles = hybridCandlesDirect?.length
+    ? hybridCandlesDirect
+    : hybridCandlesFromHistory;
+
+  const underlyingPerpResolved =
+    legacyUnderlying || baseBlock || perpPrice != null
+      ? {
+          symbol:
+            legacyUnderlying?.symbol ??
+            baseBlock?.symbol ??
+            prevPerp?.symbol ??
+            (typeof r.symbol === "string" ? r.symbol : undefined),
+          price: perpPrice ?? prevPerp?.price,
+          change24hPct: prevPerp?.change24hPct,
+          change24hAbs: prevPerp?.change24hAbs,
+          candles: perpCandles,
+        }
+      : prevPerp;
 
   return {
     price: hybridFromFields,
-    underlyingPerp:
-      underlying || perpPrice != null
-        ? {
-            symbol: underlying?.symbol ?? prevPerp?.symbol ?? r.symbol,
-            price: perpPrice ?? prevPerp?.price,
-            change24hPct: prevPerp?.change24hPct,
-            change24hAbs: prevPerp?.change24hAbs,
-            candles: underlyingTyped?.candles ?? prevPerp?.candles,
-          }
-        : prevPerp,
+    underlyingPerp: underlyingPerpResolved,
     change24hPct: r.change24hPct,
     change24hAbs: r.change24hAbs,
     volume24h: r.volume24h,
@@ -180,6 +250,8 @@ export function normalizeWhatIfResponse(
             volumeUsd: r.predictionMarket?.volumeUsd,
             liquidityUsd: r.predictionMarket?.liquidityUsd,
             url: r.predictionMarket?.url,
+            resolutionPrice: poly?.resolution_price ?? r.predictionMarket?.resolutionPrice,
+            resolvedAt: poly?.resolved_at ?? r.predictionMarket?.resolvedAt,
           }
         : undefined,
     hybridNote: r.hybridNote,
@@ -196,6 +268,15 @@ export function candlesFromApi(
     low: row.low,
     close: row.close,
   }));
+}
+
+/** Stable key for when normalized candle rows change (new poll with longer history or revised OHLC). */
+export function candleRowsSignature(
+  rows: Array<{ time: number; close: number }> | undefined | null
+): string {
+  if (!rows?.length) return "";
+  const last = rows[rows.length - 1];
+  return `${rows.length}:${last.time}:${last.close}`;
 }
 
 /**
