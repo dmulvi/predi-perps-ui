@@ -196,9 +196,9 @@ export const marketList: MarketListItem[] = [
     category: "Commodities",
   },
   {
-    symbol: "WEATHER-USD",
-    lastPrice: 19.8,
-    changePct24h: 1.77,
+    symbol: "WTI-USD-WHAT-IF",
+    lastPrice: 19.44,
+    changePct24h: 1.23,
     volume: 210,
     rebateLong: 0,
     rebateShort: 0,

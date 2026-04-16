@@ -6,7 +6,6 @@ import type { WhatIfMarketApiResponse } from "@/lib/api/whatIfMarket";
 import { candleRowsSignature, candlesFromApi } from "@/lib/api/whatIfMarket";
 import { MiniPerpChart } from "@/components/chart/MiniPerpChart";
 import { nextHybridCandle } from "@/lib/mock/hybridSeries";
-import { isWhatIfFixtureMode } from "@/lib/whatIf/fixtureMode";
 
 const TICK_MS = 2200;
 
@@ -44,9 +43,9 @@ export function WhatIfUnderlyingPerpPanel({ snapshot, mockSeries = [] }: Props) 
   const lastSyncedHistoryKeyRef = useRef<string>("");
 
   const hasServerRows = Boolean(rows?.length);
-  const fixtureMode = isWhatIfFixtureMode();
-  /** Remote API + server history: static series + last-bar patch only. Fixture or no rows: allow mock tick stream. */
-  const allowSyntheticTickStream = !hasServerRows || fixtureMode;
+  const isMockFallback = snapshot?.dataSource === "mock";
+  /** API success: never synthesize perp bars; fallback/mock: allow synthetic updates. */
+  const allowSyntheticTickStream = isMockFallback;
 
   /** Replace series when `base.history` / mock fingerprint changes — not on every poll ref or price tick. */
   useEffect(() => {

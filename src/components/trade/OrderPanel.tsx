@@ -38,6 +38,11 @@ function baseAssetFromSymbol(symbol: string) {
   return symbol.split("-")[0] ?? symbol;
 }
 
+function estimateFeesFromGrossNotional(grossNotional: number) {
+  /** 45 bps = 0.45% of notional. */
+  return grossNotional * 0.0045;
+}
+
 export function OrderPanel({
   selectedSymbol,
   markPrice,
@@ -68,12 +73,26 @@ export function OrderPanel({
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }, [marginInput]);
 
-  const notionalValue = margin * leverage;
+  const grossNotionalValue = margin * leverage;
+  const fees = estimateFeesFromGrossNotional(grossNotionalValue);
+  const effectiveMargin = Math.max(0, margin - fees);
+  const notionalValue = effectiveMargin * leverage;
   const positionAsset = markPrice > 0 ? notionalValue / markPrice : 0;
 
-  const setMarginFromNotional = (notional: number) => {
-    const n = Math.max(0, notional);
-    const m = leverage > 0 ? n / leverage : 0;
+  const setMarginFromNotional = (netNotional: number) => {
+    const n = Math.max(0, netNotional);
+    if (leverage <= 0) {
+      setMarginInput("0");
+      return;
+    }
+    // Invert: netNotional = (margin - fees(grossNotional)) * leverage
+    // where grossNotional = margin * leverage and fees are tiny but non-zero.
+    let grossNotional = n;
+    for (let i = 0; i < 3; i += 1) {
+      const fee = estimateFeesFromGrossNotional(grossNotional);
+      grossNotional = n + fee * leverage;
+    }
+    const m = grossNotional / leverage;
     if (!Number.isFinite(m)) {
       setMarginInput("0");
       return;
@@ -103,8 +122,6 @@ export function OrderPanel({
     }
     return markPrice * (1 + move);
   }, [markPrice, leverage, side]);
-
-  const fees = Math.max(0.0055, notionalValue * 5.5e-6);
 
   const onMarginChange = (raw: string) => {
     const cleaned = raw.replace(/[^\d.]/g, "");
@@ -162,11 +179,11 @@ export function OrderPanel({
 
   const marginWei = useMemo(() => {
     try {
-      return parseUnits(marginInput.replace(/,/g, "") || "0", decimals);
+      return parseUnits(effectiveMargin.toFixed(decimals), decimals);
     } catch {
       return BigInt(0);
     }
-  }, [marginInput, decimals]);
+  }, [effectiveMargin, decimals]);
 
   const {
     data: allowanceRaw,
@@ -276,7 +293,7 @@ export function OrderPanel({
             : `pos-${Date.now()}`,
         displaySymbol: selectedSymbol,
         side,
-        margin,
+        margin: effectiveMargin,
         leverage,
         markPrice,
         txHash: hash,
@@ -451,10 +468,13 @@ export function OrderPanel({
           disabled={
             busy ||
             primaryLabel === "Configure vault (env)" ||
-            ((primaryLabel === "Approve USDC" || primaryLabel === "Open position") && margin <= 0)
+            ((primaryLabel === "Approve USDC" || primaryLabel === "Open position") &&
+              effectiveMargin <= 0)
           }
-          className="w-full rounded-lg py-3 text-sm font-bold text-black transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
-          style={{ backgroundColor: LONG_GREEN }}
+          className={`w-full rounded-lg py-3 text-sm font-bold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+            side === "Long" ? "text-black" : "text-white"
+          }`}
+          style={{ backgroundColor: side === "Long" ? LONG_GREEN : "#ef4a68" }}
         >
           {busy ? "Confirm in wallet…" : primaryLabel}
         </button>
@@ -475,7 +495,7 @@ export function OrderPanel({
           {detailsOpen ? (
             <div className="space-y-2 border-t border-white/10 px-3 py-3 text-xs">
               <DetailRow label="Price" value={`${markPrice.toFixed(4)} USDC`} />
-              <DetailRow label="Margin" value={`${margin.toFixed(2)} USDC`} />
+              <DetailRow label="Margin" value={`${effectiveMargin.toFixed(2)} USDC`} />
               <DetailRow label="Additional required margin" value="0.00 USDC" />
               <DetailRow label="Notional value" value={`${notionalValue.toFixed(2)} USDC`} />
               <DetailRow
@@ -484,7 +504,7 @@ export function OrderPanel({
               />
               <DetailRow
                 label="Estimated liquidation price"
-                value={`${estLiqPrice.toFixed(4)} USDC`}
+                value={`${estLiqPrice.toFixed(2)} USDC`}
               />
               <DetailRow label="Fees" value={`${fees.toFixed(4)} USDC`} />
               <div className="flex items-center justify-between gap-2 text-white/55">

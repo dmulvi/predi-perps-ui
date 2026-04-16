@@ -1,8 +1,9 @@
 import type { CandlestickData, UTCTimestamp } from "lightweight-charts";
-import whatIfMarketMock from "@/lib/api/fixtures/whatIfMarket.mock.json";
+import { getWhatIfMarketMockBySymbol } from "@/lib/api/fixtures/whatIf";
 
 /**
- * **Contract (mock JSON ≡ REST body)** — same shape for `src/lib/api/fixtures/whatIfMarket.mock.json`
+ * **Contract (mock JSON ≡ REST body)** — same shape for market-keyed fixture files under
+ * `src/lib/api/fixtures/whatIf/`
  * and `GET` responses when `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` is set:
  *
  * - **Hybrid (main chart):** top-level **`price`** = current mark; top-level **`history`** =
@@ -73,10 +74,22 @@ export type WhatIfMarketApiResponse = {
   };
   /** Optional: how hybrid entry relates to spot + prediction (for display copy). */
   hybridNote?: string;
+  /** Internal UI hint: set by fetcher to disable synthetic ticks when live API succeeds. */
+  dataSource?: "api" | "mock";
 };
 
 function getApiUrl() {
   return process.env.NEXT_PUBLIC_WHAT_IF_MARKET_API_URL?.trim() ?? "";
+}
+
+function endpointForSymbol(baseUrl: string, selectedSymbol?: string) {
+  if (!selectedSymbol) return baseUrl;
+  return `${baseUrl.replace(/\/+$/, "")}/${selectedSymbol}`;
+}
+
+function proxyEndpointForSymbol(selectedSymbol?: string) {
+  if (!selectedSymbol) return "/api/what-if/BTC-USD-WHAT-IF";
+  return `/api/what-if/${encodeURIComponent(selectedSymbol)}`;
 }
 
 /** Raw REST / mock JSON before normalization (snake_case + nested polymarket). */
@@ -121,6 +134,15 @@ function parseDecimal(value: string | number | undefined | null): number | undef
   return Number.isFinite(n) ? n : undefined;
 }
 
+const MAX_HISTORY_DEVIATION_PCT = 0.2;
+
+function isValidHistoryStep(prevClose: number | undefined, close: number) {
+  if (!Number.isFinite(close) || close <= 0) return false;
+  if (prevClose == null || !Number.isFinite(prevClose) || prevClose <= 0) return true;
+  const deviation = Math.abs(close - prevClose) / prevClose;
+  return deviation <= MAX_HISTORY_DEVIATION_PCT;
+}
+
 /**
  * Builds OHLC rows from `{ timestamp, price }[]` (open = previous close, high/low bracket the move).
  * `time` is Unix seconds, matching `candlesFromApi` / lightweight-charts.
@@ -129,18 +151,24 @@ export function priceHistoryToOhlc(
   points: Array<{ timestamp: number; price: string | number }>
 ): NonNullable<WhatIfMarketApiResponse["candles"]> {
   if (!points.length) return [];
-  const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+  // Treat API order as authoritative; only flip if payload is clearly newest->oldest.
+  // This keeps "last history item = most recent candle before top-level price".
+  const ordered =
+    points.length >= 2 && points[0].timestamp > points[points.length - 1].timestamp
+      ? [...points].reverse()
+      : [...points];
   const out: NonNullable<WhatIfMarketApiResponse["candles"]> = [];
   let prevClose: number | undefined;
-  for (let i = 0; i < sorted.length; i++) {
-    const close = parseDecimal(sorted[i].price);
+  for (let i = 0; i < ordered.length; i++) {
+    const close = parseDecimal(ordered[i].price);
     if (close === undefined) continue;
+    if (!isValidHistoryStep(prevClose, close)) continue;
     const open = prevClose === undefined ? close : prevClose;
     prevClose = close;
     const high = Math.max(open, close);
     const low = Math.min(open, close);
     out.push({
-      time: sorted[i].timestamp,
+      time: ordered[i].timestamp,
       open,
       high,
       low,
@@ -280,25 +308,48 @@ export function candleRowsSignature(
 }
 
 /**
- * Fetches hybrid market snapshot. If `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` is empty,
- * returns the normalized [fixture](fixtures/whatIfMarket.mock.json) (same shape as the REST API).
+ * Fetches hybrid market snapshot from:
+ * `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL/<selectedSymbol>`.
+ * If the base URL is empty or the request fails, falls back to the symbol-matched fixture.
  */
-export async function fetchWhatIfMarket(): Promise<WhatIfMarketApiResponse> {
+export async function fetchWhatIfMarket(
+  selectedSymbol?: string
+): Promise<WhatIfMarketApiResponse> {
   const url = getApiUrl();
+  const fallback = (reason?: string) => {
+    if (typeof window !== "undefined" && reason) {
+      console.warn(`[what-if] using mock fallback: ${reason}`);
+    }
+    return (
+    ({
+      ...normalizeWhatIfResponse(
+        getWhatIfMarketMockBySymbol(selectedSymbol) as unknown as WhatIfApiRaw
+      ),
+      dataSource: "mock" as const,
+    })
+    );
+  };
+
   if (!url) {
-    return normalizeWhatIfResponse(whatIfMarketMock as unknown as WhatIfApiRaw);
+    return fallback("NEXT_PUBLIC_WHAT_IF_MARKET_API_URL is empty");
   }
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    throw new Error(`What-if API error: ${res.status} ${res.statusText}`);
+  const endpoint = endpointForSymbol(url, selectedSymbol);
+  const proxyEndpoint = proxyEndpointForSymbol(selectedSymbol);
+  try {
+    const res = await fetch(proxyEndpoint, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return fallback(`HTTP ${res.status} from proxy ${proxyEndpoint} (upstream ${endpoint})`);
+    const raw = (await res.json()) as Record<string, unknown>;
+    return {
+      ...normalizeWhatIfResponse(raw),
+      dataSource: "api" as const,
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown fetch error";
+    return fallback(`request to ${endpoint} failed: ${message}`);
   }
-
-  const raw = (await res.json()) as Record<string, unknown>;
-  return normalizeWhatIfResponse(raw);
 }

@@ -26,8 +26,8 @@ const initial: State = {
 };
 
 /**
- * Polls the what-if endpoint while `BTC-USD-WHAT-IF` is selected.
- * If `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` is unset, `fetchWhatIfMarket` serves the local JSON fixture.
+ * Polls the what-if endpoint while a what-if symbol is selected.
+ * If `NEXT_PUBLIC_WHAT_IF_MARKET_API_URL` is unset, `fetchWhatIfMarket` serves the symbol-matched fixture.
  */
 export function useWhatIfMarket(selectedSymbol: string) {
   const [state, setState] = useState<State>(initial);
@@ -37,7 +37,7 @@ export function useWhatIfMarket(selectedSymbol: string) {
 
     setState((s) => ({ ...s, isLoading: s.data === null, error: null }));
     try {
-      const data = await fetchWhatIfMarket();
+      const data = await fetchWhatIfMarket(selectedSymbol);
       setState({
         data,
         error: null,
@@ -59,16 +59,24 @@ export function useWhatIfMarket(selectedSymbol: string) {
     if (!isWhatIfSymbol(selectedSymbol)) return;
 
     let cancelled = false;
+    const interval = pollIntervalMs();
+
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, ms);
+      });
+
     const run = async () => {
-      if (cancelled) return;
-      await refresh();
+      while (!cancelled) {
+        await refresh();
+        if (cancelled) break;
+        await sleep(interval);
+      }
     };
 
     void run();
-    const id = window.setInterval(run, pollIntervalMs());
     return () => {
       cancelled = true;
-      window.clearInterval(id);
     };
   }, [selectedSymbol, refresh]);
 

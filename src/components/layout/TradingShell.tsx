@@ -13,7 +13,7 @@ import { StatBadge } from "@/components/ui/StatBadge";
 import { WhatIfHybridSection } from "@/components/whatif/WhatIfHybridSection";
 import { useEffectiveWalletAddress } from "@/hooks/useEffectiveWalletAddress";
 import { useStoredPositions } from "@/hooks/useStoredPositions";
-import { isWhatIfSymbol, WHAT_IF_SYMBOL } from "@/lib/constants/markets";
+import { isWhatIfSymbol } from "@/lib/constants/markets";
 import { useWhatIfHybridChart } from "@/hooks/useWhatIfHybridChart";
 import { useWhatIfMarket } from "@/hooks/useWhatIfMarket";
 import { symbolToSlug } from "@/lib/market/slug";
@@ -141,7 +141,7 @@ export function TradingShell({ candles, selectedSymbol }: Props) {
   const handlePositionOpened = useCallback(
     (position: Position, signedBy?: `0x${string}`) => {
       prependPosition(position, signedBy);
-      if (position.market === WHAT_IF_SYMBOL) {
+      if (isWhatIfSymbol(position.market)) {
         setWhatIfSessionVolumeExtra((v) => v + position.notionalValue);
       }
     },

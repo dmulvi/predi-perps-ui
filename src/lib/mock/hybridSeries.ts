@@ -65,7 +65,11 @@ export function nextHybridCandle(
   anchorHint?: number
 ): CandlestickData<UTCTimestamp> {
   const open = prev.close;
-  const vol = Math.max(open * 0.002, 10);
+  /**
+   * Keep synthetic moves proportional to price so low-priced markets (e.g. WTI what-if)
+   * do not jump excessively. This targets sub-2% per-tick movement.
+   */
+  const vol = Math.max(Math.abs(open) * 0.002, 0.02);
   let close = open + randomBetween(-vol * 0.85, vol * 0.85);
   if (anchorHint != null) {
     close = close * 0.88 + anchorHint * 0.12;
